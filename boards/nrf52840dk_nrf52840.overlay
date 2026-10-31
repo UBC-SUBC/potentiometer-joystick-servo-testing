@@ -1,0 +1,118 @@
+/*
+ * Pin map (nRF52840 DK, Arduino header name in brackets):
+ *
+ *   Joystick VRx   P0.03 [A0]    yaw
+ *   Joystick VRy   P0.04 [A1]    pitch
+ *   Joystick SW    P1.03 [D2]    arm/disarm
+ *   Upper port     P1.04 [D3]    pwm1 channel 0
+ *   Upper stbd     P1.05 [D4]    pwm1 channel 1
+ *   Lower stbd     P1.06 [D5]    pwm1 channel 2
+ *   Lower port     P1.07 [D6]    pwm1 channel 3
+ *
+ * Fin names are as seen from the stern, looking forward (port = left).
+ */
+
+/ {
+    fin_upper_port: fin_upper_port {
+        compatible = "pwm-servo";
+        pwms = <&pwm1 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+        min-pulse = <PWM_USEC(500)>;
+        max-pulse = <PWM_USEC(2500)>;
+    };
+
+    fin_upper_stbd: fin_upper_stbd {
+        compatible = "pwm-servo";
+        pwms = <&pwm1 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+        min-pulse = <PWM_USEC(500)>;
+        max-pulse = <PWM_USEC(2500)>;
+    };
+
+    fin_lower_stbd: fin_lower_stbd {
+        compatible = "pwm-servo";
+        pwms = <&pwm1 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+        min-pulse = <PWM_USEC(500)>;
+        max-pulse = <PWM_USEC(2500)>;
+    };
+
+    fin_lower_port: fin_lower_port {
+        compatible = "pwm-servo";
+        pwms = <&pwm1 3 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+        min-pulse = <PWM_USEC(500)>;
+        max-pulse = <PWM_USEC(2500)>;
+    };
+
+    zephyr,user {
+        io-channels = <&adc 0>, <&adc 1>;
+        joystick-sw-gpios = <&gpio1 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+    };
+};
+
+/*
+ * All four servos share pwm1. One instance has four channels with one common
+ * period, which suits servos all running at 20 ms.
+ *
+ * Unlike servo_testing, these pins do not set nordic,invert: that makes a pin
+ * idle high, and the signal line should sit low until the first pulse.
+ */
+&pwm1 {
+    status = "okay";
+    pinctrl-0 = <&pwm1_fins_default>;
+    pinctrl-1 = <&pwm1_fins_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
+&pinctrl {
+    pwm1_fins_default: pwm1_fins_default {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 1, 4)>,
+                    <NRF_PSEL(PWM_OUT1, 1, 5)>,
+                    <NRF_PSEL(PWM_OUT2, 1, 6)>,
+                    <NRF_PSEL(PWM_OUT3, 1, 7)>;
+        };
+    };
+
+    pwm1_fins_sleep: pwm1_fins_sleep {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 1, 4)>,
+                    <NRF_PSEL(PWM_OUT1, 1, 5)>,
+                    <NRF_PSEL(PWM_OUT2, 1, 6)>,
+                    <NRF_PSEL(PWM_OUT3, 1, 7)>;
+            low-power-enable;
+        };
+    };
+};
+
+/* pwm0 would otherwise claim P0.13, which LED1 needs as the armed indicator. */
+&pwm0 {
+    status = "disabled";
+};
+
+/*
+ * VDD/4 reference with 1/4 gain makes full scale equal to VDD, so a pot powered
+ * from VDD reads the same regardless of the exact supply voltage.
+ */
+&adc {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    status = "okay";
+
+    channel@0 {
+        reg = <0>;
+        zephyr,gain = "ADC_GAIN_1_4";
+        zephyr,reference = "ADC_REF_VDD_1_4";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.03 */
+        zephyr,resolution = <12>;
+        zephyr,oversampling = <4>;
+    };
+
+    channel@1 {
+        reg = <1>;
+        zephyr,gain = "ADC_GAIN_1_4";
+        zephyr,reference = "ADC_REF_VDD_1_4";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN2>; /* P0.04 */
+        zephyr,resolution = <12>;
+        zephyr,oversampling = <4>;
+    };
+};
